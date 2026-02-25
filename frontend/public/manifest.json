@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "description": "AI-powered concept scouting for Piazza.",
   "permissions": ["storage"],
-  "host_permissions": ["https://piazza.com/*"],
+  "host_permissions": [
+    "https://piazza.com/*",
+    "http://localhost:5000/*"
+  ],
   "content_scripts": [
     {
       "matches": ["https://piazza.com/*"],
