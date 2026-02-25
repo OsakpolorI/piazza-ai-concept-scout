@@ -70,7 +70,7 @@ piazza-ai-concept-scout/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/piazza-ai-concept-scout.git
+git clone https://github.com/OsakpolorI/piazza-ai-concept-scout
 cd piazza-ai-concept-scout
 ```
 

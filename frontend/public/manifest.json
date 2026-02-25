@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Piazza AI Concept Scout",
+  "version": "1.0.0",
+  "description": "AI-powered concept scouting for Piazza.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://piazza.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
