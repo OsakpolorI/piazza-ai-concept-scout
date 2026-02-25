@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const explainController = require('../controllers/explainController');
 
-// POST /api/explain - wire controller here
+router.post('/', explainController.explainPost);
 
 module.exports = router;
