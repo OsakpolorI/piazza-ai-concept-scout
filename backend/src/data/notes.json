@@ -1,24 +1,22 @@
 [
   {
-    "keywords": ["midterm", "exam", "weeks", "coverage"],
-    "explanation": "The midterm typically covers material from Week 1 through the week before the exam. Check your course syllabus for the exact scope.",
-    "prerequisite_bridge": "Review the course schedule to confirm which topics are included.",
-    "reflection_questions": [
-      "Have you covered all the listed weeks in lecture?",
-      "Which topics do you find most challenging?"
-    ],
-    "ask_prof": "Consider asking: 'Can you confirm the exact week range for the midterm?'",
-    "references": ["Course syllabus", "Lecture schedule"]
+    "title": "Week 1 - Memory Model",
+    "body": "The memory model describes how your program's variables are laid out in RAM. Each variable has an address, and the stack stores local variables while the heap stores dynamically allocated data."
   },
   {
-    "keywords": ["pointer", "memory address", "pointers"],
-    "explanation": "A pointer is a variable that stores the memory address of another variable. It 'points to' where data lives in memory.",
-    "prerequisite_bridge": "Memory addresses are numeric identifiers for locations in RAM. Understanding them helps clarify how pointers work.",
-    "reflection_questions": [
-      "How does a pointer differ from the value it points to?",
-      "Why might we need to pass a pointer instead of a value?"
-    ],
-    "ask_prof": "Consider asking: 'Can you walk through an example of pointer dereferencing?'",
-    "references": ["Textbook Ch. 8", "Week 5 slides"]
+    "title": "Week 3 - Pointers",
+    "body": "A pointer is a variable that stores the memory address of another variable. Use the & operator to get an address and * to dereference (access the value at that address)."
+  },
+  {
+    "title": "Week 4 - Recursion",
+    "body": "Recursion is when a function calls itself. Every recursive function needs a base case (to stop) and a recursive case (to make progress toward the base case)."
+  },
+  {
+    "title": "Week 5 - Arrays and Memory",
+    "body": "An array is a contiguous block of memory. The array name acts like a pointer to the first element. Indexing arr[i] is equivalent to *(arr + i)."
+  },
+  {
+    "title": "Week 6 - Midterm Coverage",
+    "body": "The midterm covers weeks 1–6: memory model, variables, pointers, recursion, and arrays. Review the syllabus for the exact scope."
   }
 ]
