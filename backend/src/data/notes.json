@@ -1,0 +1,24 @@
+[
+  {
+    "keywords": ["midterm", "exam", "weeks", "coverage"],
+    "explanation": "The midterm typically covers material from Week 1 through the week before the exam. Check your course syllabus for the exact scope.",
+    "prerequisite_bridge": "Review the course schedule to confirm which topics are included.",
+    "reflection_questions": [
+      "Have you covered all the listed weeks in lecture?",
+      "Which topics do you find most challenging?"
+    ],
+    "ask_prof": "Consider asking: 'Can you confirm the exact week range for the midterm?'",
+    "references": ["Course syllabus", "Lecture schedule"]
+  },
+  {
+    "keywords": ["pointer", "memory address", "pointers"],
+    "explanation": "A pointer is a variable that stores the memory address of another variable. It 'points to' where data lives in memory.",
+    "prerequisite_bridge": "Memory addresses are numeric identifiers for locations in RAM. Understanding them helps clarify how pointers work.",
+    "reflection_questions": [
+      "How does a pointer differ from the value it points to?",
+      "Why might we need to pass a pointer instead of a value?"
+    ],
+    "ask_prof": "Consider asking: 'Can you walk through an example of pointer dereferencing?'",
+    "references": ["Textbook Ch. 8", "Week 5 slides"]
+  }
+]
