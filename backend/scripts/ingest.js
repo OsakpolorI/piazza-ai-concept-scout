@@ -1,16 +1,20 @@
-require('dotenv').config();
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+
+// Load .env from project root (parent of backend/)
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const { PDFParse } = require('pdf-parse');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+const hfToken = process.env.HUGGINGFACE_API_KEY;
 
 const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-const EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
+const HF_EMBEDDING_URL =
+  'https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction';
 const EMBEDDING_DIMENSIONS = 384;
 
 const DEFAULT_PDF = 'CSC263H5S-2026_Winter_Syllabus-20251210.pdf';
@@ -25,9 +29,6 @@ async function parsePdf(filePath) {
 
 /**
  * Split text into chunks of ~chunkSize characters, preserving sentence boundaries.
- * @param {string} text - Raw text to chunk
- * @param {number} chunkSize - Target chunk size in characters (default 500)
- * @returns {string[]} Array of text chunks
  */
 function chunkText(text, chunkSize = 500) {
   if (!text || typeof text !== 'string') return [];
@@ -59,17 +60,70 @@ function chunkText(text, chunkSize = 500) {
   return chunks;
 }
 
+/**
+ * Call Hugging Face Inference API to get embedding for text.
+ * Returns 384-dim vector or null on failure.
+ */
 async function getEmbedding(text) {
-  // TODO: Call Hugging Face Inference API for sentence-transformers/all-MiniLM-L6-v2
-  throw new Error('Not implemented');
+  if (!hfToken) {
+    console.error('Missing HUGGINGFACE_API_KEY in .env');
+    return null;
+  }
+
+  try {
+    const response = await fetch(HF_EMBEDDING_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${hfToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs: text }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`HF API ${response.status}: ${errText}`);
+    }
+
+    const result = await response.json();
+
+    // API returns [[...floats]] for single input; extract inner array
+    const embedding = Array.isArray(result[0]) ? result[0] : result;
+    if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSIONS) {
+      throw new Error(`Unexpected embedding shape: ${embedding?.length} dims`);
+    }
+
+    return embedding;
+  } catch (err) {
+    console.error('Embedding API error:', err.message);
+    return null;
+  }
 }
 
 async function insertDocument(content, metadata, embedding) {
-  // TODO: Insert into Supabase documents table
-  throw new Error('Not implemented');
+  if (!supabase) return { error: 'Supabase not configured' };
+
+  const { error } = await supabase.from('documents').insert({
+    content,
+    metadata,
+    embedding,
+  });
+
+  if (error) throw error;
+  return {};
 }
 
 async function main() {
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in .env');
+    process.exit(1);
+  }
+
+  if (!hfToken) {
+    console.error('Missing HUGGINGFACE_API_KEY in .env');
+    process.exit(1);
+  }
+
   const pdfName = process.argv[2] || DEFAULT_PDF;
   const pdfPath = path.isAbsolute(pdfName)
     ? pdfName
@@ -88,9 +142,31 @@ async function main() {
   const chunks = chunkText(text, 500);
   const chunkCount = chunks.length;
 
-  console.log('PDF ingestion complete');
   console.log('Total characters:', totalChars);
-  console.log('Number of chunks generated:', chunkCount);
+  console.log('Number of chunks:', chunkCount);
+
+  const filename = path.basename(pdfName);
+  let inserted = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const embedding = await getEmbedding(chunk);
+
+    if (!embedding) {
+      console.error(`Skipping chunk ${i + 1}/${chunkCount} (embedding failed)`);
+      continue;
+    }
+
+    try {
+      await insertDocument(chunk, { filename, chunk_index: i }, embedding);
+      inserted++;
+      console.log(`Inserted chunk ${inserted}/${chunkCount}`);
+    } catch (err) {
+      console.error(`Insert failed for chunk ${i + 1}:`, err.message);
+    }
+  }
+
+  console.log('Ingestion complete. Inserted:', inserted, '/', chunkCount);
 }
 
 main().catch((err) => {
