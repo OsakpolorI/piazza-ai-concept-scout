@@ -6,6 +6,9 @@ require('dotenv').config({ path: path.join(__dirname, '..', '..', '..', '.env') 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.1-8b-instant';
 
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const GEMINI_MODEL = 'gemini-1.5-flash';
+
 const NO_MATCHES_RESPONSE = {
   explanation: 'No relevant lecture content found for this question. Try rephrasing or ask your professor.',
   prerequisite_bridge: '',
@@ -21,6 +24,15 @@ const GROQ_FAILURE_RESPONSE = {
   ask_prof: '',
   references: [],
 };
+
+/**
+ * Failover improves availability: when one provider is rate-limited (429), overloaded (5xx),
+ * or unreachable (network error), we automatically switch to a backup. Students get explanations
+ * instead of generic error messages.
+ *
+ * Cost-efficient for MVP: Groq and Gemini both offer generous free tiers. Using Groq first
+ * (fast, free) and Gemini as fallback avoids paid overages while maximizing uptime.
+ */
 
 async function explainPost(req, res) {
   const text = req.body?.text;
@@ -57,43 +69,67 @@ Return structured JSON with these exact keys (no other text):
 - ask_prof: string
 - references: array of strings`;
 
-    const groqKey = process.env.GROQ_API_KEY;
-    if (!groqKey) {
-      console.error('[Piazza AI] Missing GROQ_API_KEY');
-      return res.json(GROQ_FAILURE_RESPONSE);
+    let rawContent = null;
+
+    // Primary: Groq (fast, free tier). Catch 429, 5xx, network errors and fail over to Gemini.
+    try {
+      const groqKey = process.env.GROQ_API_KEY;
+      if (!groqKey) throw new Error('Missing GROQ_API_KEY');
+
+      const groqResponse = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!groqResponse.ok) {
+        const status = groqResponse.status;
+        const errText = await groqResponse.text();
+
+        if (status === 429 || status >= 500) {
+          console.log('[LLM] Groq failed, switching to Gemini...', `(${status}: ${errText?.slice(0, 80)})`);
+          throw new Error(`Groq ${status}`);
+        }
+
+        console.error('[Piazza AI] Groq API error:', status, errText);
+        return res.json(GROQ_FAILURE_RESPONSE);
+      }
+
+      const groqData = await groqResponse.json();
+      rawContent = groqData?.choices?.[0]?.message?.content;
+    } catch (groqErr) {
+      const isRetriable =
+        groqErr?.message?.includes('429') ||
+        groqErr?.message?.includes('5') ||
+        groqErr?.code === 'ECONNREFUSED' ||
+        groqErr?.code === 'ETIMEDOUT' ||
+        groqErr?.name === 'TypeError';
+
+      if (isRetriable) {
+        console.log('[LLM] Groq failed, switching to Gemini...', groqErr.message);
+        rawContent = await callGemini(prompt);
+      } else {
+        console.error('[Piazza AI] Groq error:', groqErr.message);
+        return res.json(GROQ_FAILURE_RESPONSE);
+      }
     }
-
-    const groqResponse = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 1024,
-      }),
-    });
-
-    if (!groqResponse.ok) {
-      const errText = await groqResponse.text();
-      console.error('[Piazza AI] Groq API error:', groqResponse.status, errText);
-      return res.json(GROQ_FAILURE_RESPONSE);
-    }
-
-    const groqData = await groqResponse.json();
-    const rawContent = groqData?.choices?.[0]?.message?.content;
 
     if (!rawContent) {
-      console.error('[Piazza AI] Groq returned empty content');
+      console.error('[Piazza AI] No LLM content returned');
       return res.json(GROQ_FAILURE_RESPONSE);
     }
 
     const parsed = parseStructuredResponse(rawContent);
     if (!parsed) {
-      console.error('[Piazza AI] Failed to parse Groq JSON response');
+      console.error('[Piazza AI] Failed to parse LLM JSON response');
       return res.json(GROQ_FAILURE_RESPONSE);
     }
 
@@ -107,6 +143,41 @@ Return structured JSON with these exact keys (no other text):
   } catch (err) {
     console.error('[Piazza AI] explainPost error:', err.message);
     return res.json(GROQ_FAILURE_RESPONSE);
+  }
+}
+
+async function callGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('[Piazza AI] Missing GEMINI_API_KEY for failover');
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[Piazza AI] Gemini API error:', response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+  } catch (err) {
+    console.error('[Piazza AI] Gemini failover error:', err.message);
+    return null;
   }
 }
 
