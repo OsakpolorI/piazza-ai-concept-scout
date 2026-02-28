@@ -17,8 +17,8 @@ const HF_EMBEDDING_URL =
   'https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction';
 const EMBEDDING_DIMENSIONS = 384;
 
-const DEFAULT_MATCH_THRESHOLD = 0.6;
-const DEFAULT_MATCH_COUNT = 3;
+const DEFAULT_MATCH_THRESHOLD = 0.5;
+const DEFAULT_MATCH_COUNT = 5;
 
 /**
  * Call Hugging Face API to embed query text.
@@ -65,12 +65,14 @@ async function embedQuery(queryText) {
  * Returns top matches (content, metadata, similarity) or [] on failure.
  */
 async function searchSimilarDocuments(queryText) {
-  console.debug('[VectorService] Query received:', queryText?.slice(0, 80) + (queryText?.length > 80 ? '...' : ''));
+  console.log('[VectorService] Query received:', queryText?.slice(0, 100) + (queryText?.length > 100 ? '...' : ''));
 
   const queryEmbedding = await embedQuery(queryText);
   if (!queryEmbedding) {
+    console.log('[VectorService] Embedding failed — no matches');
     return [];
   }
+  console.log('[VectorService] Embedding OK, length:', queryEmbedding.length);
 
   const { data, error } = await supabase.rpc('match_documents', {
     query_embedding: queryEmbedding,
@@ -79,11 +81,11 @@ async function searchSimilarDocuments(queryText) {
   });
 
   if (error) {
-    console.error('[VectorService] Supabase RPC error:', error.message);
+    console.error('[VectorService] Supabase RPC error:', error.message, error.details || '');
     return [];
   }
 
-  console.debug('[VectorService] Matches found:', data?.length ?? 0);
+  console.log('[VectorService] Matches found:', data?.length ?? 0);
   return data ?? [];
 }
 

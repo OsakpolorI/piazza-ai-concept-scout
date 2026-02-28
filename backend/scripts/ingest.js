@@ -19,6 +19,18 @@ const EMBEDDING_DIMENSIONS = 384;
 
 const DEFAULT_PDF = 'CSC263H5S-2026_Winter_Syllabus-20251210.pdf';
 
+// For dense content (e.g. Open Data Structures): larger chunks + overlap
+const CHUNK_SIZE = 900;
+const CHUNK_OVERLAP = 100;
+
+// Rate limiting: avoid HF throttling on large ingests
+const HF_DELAY_MS = 150;
+
+// Bulk insert batch size (faster than one-by-one, avoids timeouts)
+const BATCH_SIZE = 50;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function parsePdf(filePath) {
   const absPath = path.resolve(filePath);
   const fileUrl = 'file:///' + absPath.replace(/\\/g, '/');
@@ -28,9 +40,11 @@ async function parsePdf(filePath) {
 }
 
 /**
- * Split text into chunks of ~chunkSize characters, preserving sentence boundaries.
+ * Split text into chunks with optional overlap.
+ * For dense content (e.g. data structures), use 800–1000 chars with 100-char overlap
+ * so context isn't lost at chunk boundaries.
  */
-function chunkText(text, chunkSize = 500) {
+function chunkText(text, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP) {
   if (!text || typeof text !== 'string') return [];
   const trimmed = text.trim();
   if (!trimmed) return [];
@@ -54,7 +68,7 @@ function chunkText(text, chunkSize = 500) {
 
     const chunk = trimmed.slice(start, end).trim();
     if (chunk) chunks.push(chunk);
-    start = end;
+    start = Math.max(end - overlap, start + 1);
   }
 
   return chunks;
@@ -100,17 +114,10 @@ async function getEmbedding(text) {
   }
 }
 
-async function insertDocument(content, metadata, embedding) {
-  if (!supabase) return { error: 'Supabase not configured' };
-
-  const { error } = await supabase.from('documents').insert({
-    content,
-    metadata,
-    embedding,
-  });
-
+async function bulkInsertDocuments(rows) {
+  if (!supabase || rows.length === 0) return;
+  const { error } = await supabase.from('documents').insert(rows);
   if (error) throw error;
-  return {};
 }
 
 async function main() {
@@ -139,17 +146,20 @@ async function main() {
   const text = await parsePdf(pdfPath);
   const totalChars = text.length;
 
-  const chunks = chunkText(text, 500);
+  const chunks = chunkText(text, CHUNK_SIZE, CHUNK_OVERLAP);
   const chunkCount = chunks.length;
 
   console.log('Total characters:', totalChars);
-  console.log('Number of chunks:', chunkCount);
+  console.log('Number of chunks:', chunkCount, `(size=${CHUNK_SIZE}, overlap=${CHUNK_OVERLAP})`);
 
   const filename = path.basename(pdfName);
+  const batch = [];
   let inserted = 0;
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
+
+    if (i > 0) await sleep(HF_DELAY_MS);
     const embedding = await getEmbedding(chunk);
 
     if (!embedding) {
@@ -157,12 +167,30 @@ async function main() {
       continue;
     }
 
+    batch.push({
+      content: chunk,
+      metadata: { filename, chunk_index: i },
+      embedding,
+    });
+
+    if (batch.length >= BATCH_SIZE) {
+      try {
+        await bulkInsertDocuments(batch);
+        inserted += batch.length;
+        console.log(`Inserted ${inserted}/${chunkCount}`);
+      } catch (err) {
+        console.error(`Bulk insert failed at chunk ${i + 1}:`, err.message);
+      }
+      batch.length = 0;
+    }
+  }
+
+  if (batch.length > 0) {
     try {
-      await insertDocument(chunk, { filename, chunk_index: i }, embedding);
-      inserted++;
-      console.log(`Inserted chunk ${inserted}/${chunkCount}`);
+      await bulkInsertDocuments(batch);
+      inserted += batch.length;
     } catch (err) {
-      console.error(`Insert failed for chunk ${i + 1}:`, err.message);
+      console.error('Final bulk insert failed:', err.message);
     }
   }
 

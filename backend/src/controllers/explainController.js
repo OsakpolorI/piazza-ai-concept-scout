@@ -53,21 +53,16 @@ async function explainPost(req, res) {
     const lectureChunks = matches.map((m) => m.content || '').filter(Boolean);
     const chunksText = lectureChunks.map((c, i) => `[Chunk ${i + 1}]\n${c}`).join('\n\n');
 
-    const prompt = `You are a CS1 teaching assistant.
-Answer the student question:
+    const prompt = `You are a CS1 teaching assistant. Answer the student question using ONLY the lecture notes below. Return ONLY valid JSON, no markdown or extra text.
 
+Student question:
 ${text}
 
-Use ONLY the following lecture notes:
-
+Lecture notes:
 ${chunksText}
 
-Return structured JSON with these exact keys (no other text):
-- explanation: string
-- prerequisite_bridge: string
-- reflection_questions: array of strings
-- ask_prof: string
-- references: array of strings`;
+Return exactly this JSON structure (no other text):
+{"explanation":"...","prerequisite_bridge":"...","reflection_questions":["...","..."],"ask_prof":"...","references":["..."]}`;
 
     let rawContent = null;
 
@@ -87,6 +82,7 @@ Return structured JSON with these exact keys (no other text):
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.3,
           max_tokens: 1024,
+          response_format: { type: 'json_object' },
         }),
       });
 
@@ -129,7 +125,7 @@ Return structured JSON with these exact keys (no other text):
 
     const parsed = parseStructuredResponse(rawContent);
     if (!parsed) {
-      console.error('[Piazza AI] Failed to parse LLM JSON response');
+      console.error('[Piazza AI] Failed to parse LLM JSON. Raw (first 300 chars):', rawContent?.slice(0, 300));
       return res.json(GROQ_FAILURE_RESPONSE);
     }
 
@@ -182,22 +178,20 @@ async function callGemini(prompt) {
 }
 
 /**
- * Extract and parse JSON from LLM response (may be wrapped in ```json blocks).
+ * Extract and parse JSON from LLM response (may be wrapped in ```json blocks or have extra text).
  */
 function parseStructuredResponse(raw) {
+  if (!raw || typeof raw !== 'string') return null;
   try {
     let jsonStr = raw.trim();
 
     const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      jsonStr = codeBlockMatch[1].trim();
-    }
+    if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
 
     const braceMatch = jsonStr.match(/\{[\s\S]*\}/);
-    if (braceMatch) {
-      jsonStr = braceMatch[0];
-    }
+    if (braceMatch) jsonStr = braceMatch[0];
 
+    jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
     return JSON.parse(jsonStr);
   } catch {
     return null;
