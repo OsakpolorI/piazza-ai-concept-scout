@@ -50,19 +50,37 @@ async function explainPost(req, res) {
       return res.json(NO_MATCHES_RESPONSE);
     }
 
-    const lectureChunks = matches.map((m) => m.content || '').filter(Boolean);
-    const chunksText = lectureChunks.map((c, i) => `[Chunk ${i + 1}]\n${c}`).join('\n\n');
+    const chunksWithMeta = matches.map((m, i) => ({
+      content: m.content || '',
+      filename: m.metadata?.filename ?? 'Unknown',
+      chunk_index: m.metadata?.chunk_index ?? i,
+    })).filter((c) => c.content);
 
-    const prompt = `You are a CS1 teaching assistant. Answer the student question using ONLY the lecture notes below. Return ONLY valid JSON, no markdown or extra text.
+    const chunksText = chunksWithMeta
+      .map((c, i) => `[Chunk ${i + 1}] Source: ${c.filename}, chunk ${c.chunk_index}\n${c.content}`)
+      .join('\n\n');
+
+    const references = chunksWithMeta.map((c) => ({
+      filename: c.filename,
+      chunk_index: c.chunk_index,
+    }));
+
+    const prompt = `You are a CS1 teaching assistant. Answer the student question using ONLY the lecture notes below.
+
+STRICT RULES:
+- Use ONLY information from the provided chunks. Do not add external knowledge.
+- Base every claim on a specific chunk. If something is not in the chunks, do not include it.
+- When explaining, mentally note which chunk (by number, e.g. Chunk 1) supports each point.
+- The "references" field in your response will be populated from our retrieval system—focus on generating a grounded explanation.
 
 Student question:
 ${text}
 
-Lecture notes:
+Lecture notes (each chunk has Source: filename, chunk index):
 ${chunksText}
 
-Return exactly this JSON structure (no other text):
-{"explanation":"...","prerequisite_bridge":"...","reflection_questions":["...","..."],"ask_prof":"...","references":["..."]}`;
+Return ONLY valid JSON, no markdown or extra text. Use this exact structure:
+{"explanation":"...","prerequisite_bridge":"...","reflection_questions":["...","..."],"ask_prof":"..."}`;
 
     let rawContent = null;
 
@@ -134,7 +152,7 @@ Return exactly this JSON structure (no other text):
       prerequisite_bridge: parsed.prerequisite_bridge ?? '',
       reflection_questions: Array.isArray(parsed.reflection_questions) ? parsed.reflection_questions : [],
       ask_prof: parsed.ask_prof ?? '',
-      references: Array.isArray(parsed.references) ? parsed.references : [],
+      references,
     });
   } catch (err) {
     console.error('[Piazza AI] explainPost error:', err.message);

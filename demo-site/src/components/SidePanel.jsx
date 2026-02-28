@@ -34,6 +34,39 @@ function SectionList({ title, items }) {
   );
 }
 
+function ReferencesSection({ references }) {
+  if (!references || !Array.isArray(references) || references.length === 0) return null;
+
+  return (
+    <div style={SECTION_STYLE}>
+      <strong style={{ display: 'block', marginBottom: '8px', color: '#333' }}>
+        References
+      </strong>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {references.map((ref, i) => {
+          if (typeof ref === 'object' && ref !== null && 'filename' in ref) {
+            return (
+              <div key={i} style={{ padding: '8px 10px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                <strong style={{ display: 'block', fontSize: '13px', color: '#1e40af' }}>
+                  {ref.filename}
+                </strong>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                  Chunk {ref.chunk_index} — context marker
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div key={i} style={{ padding: '6px 0', fontSize: '13px', color: '#555' }}>
+              {String(ref)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SidePanel({ onClose, state, data }) {
   const messageStyle = { marginTop: '32px', color: '#666', fontSize: '14px' };
 
@@ -51,7 +84,7 @@ function SidePanel({ onClose, state, data }) {
         <Section title="Prerequisite Bridge" content={data.prerequisite_bridge} />
         <SectionList title="Reflection Questions" items={data.reflection_questions} />
         <Section title="Ask Professor" content={data.ask_prof} />
-        <SectionList title="References" items={data.references} />
+        <ReferencesSection references={data.references} />
       </div>
     );
   } else {
