@@ -26,6 +26,9 @@ const CHUNK_OVERLAP = 100;
 // Rate limiting: avoid HF throttling on large ingests
 const HF_DELAY_MS = 150;
 
+// Timeout for each embedding request (prevents indefinite hang)
+const HF_TIMEOUT_MS = 600000; // 10 minutes
+
 // Bulk insert batch size (faster than one-by-one, avoids timeouts)
 const BATCH_SIZE = 50;
 
@@ -85,6 +88,9 @@ async function getEmbedding(text) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HF_TIMEOUT_MS);
+
     const response = await fetch(HF_EMBEDDING_URL, {
       method: 'POST',
       headers: {
@@ -92,7 +98,10 @@ async function getEmbedding(text) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ inputs: text }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -156,6 +165,7 @@ async function main() {
   const batch = [];
   let inserted = 0;
 
+  console.log('Fetching embeddings from Hugging Face...');
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
 
