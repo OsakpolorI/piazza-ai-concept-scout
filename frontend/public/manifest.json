@@ -6,7 +6,8 @@
   "permissions": ["storage"],
   "host_permissions": [
     "https://piazza.com/*",
-    "http://localhost:5000/*"
+    "http://localhost:5000/*",
+    "http://18.117.151.122/*"
   ],
   "content_scripts": [
     {
