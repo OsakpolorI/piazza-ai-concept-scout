@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Forum from './components/Forum';
 import SidePanel from './components/SidePanel';
 
-const API_URL = 'http://localhost:5000/api/explain';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = `${API_BASE}/api/explain`;
 
 function App() {
   const [isOpen, setIsOpen] = useState(false);
