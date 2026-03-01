@@ -3,7 +3,7 @@ import ExplainButton from './components/ExplainButton';
 import SidePanel from './components/SidePanel';
 import { extractPiazzaPost } from './utils/extractPiazzaPost';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://piazza-scout.duckdns.org';
 const API_URL = `${API_BASE}/api/explain`;
 
 function App() {
