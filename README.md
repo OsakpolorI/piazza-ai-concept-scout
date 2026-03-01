@@ -2,6 +2,8 @@
 
 **A context-aware research assistant for CS1 students, integrated directly into the Piazza interface.**
 
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://piazza-ai-demo.vercel.app) [![Backend API](https://img.shields.io/badge/API-https%3A%2F%2Fpiazza--scout.duckdns.org-blue)](https://piazza-scout.duckdns.org)
+
 ---
 
 ## 🚀 Project Overview
@@ -22,10 +24,10 @@
 | :--- | :--- | :--- |
 | **Frontend** | React + Vite + Manifest V3 | High-performance Chrome Extension UI |
 | **Backend** | Node.js + Express.js | API Proxy & orchestration layer |
-| **Orchestration** | LangChain | Retrieval-Augmented Generation (RAG) |
+| **RAG** | Custom pipeline | Retrieval-Augmented Generation over course materials |
 | **Inference** | Groq / Gemini / Hugging Face | Multi-provider LLM pipeline |
-| **Vector DB** | Pinecone / ChromaDB | Semantic search over lecture notes |
-| **Infrastructure** | AWS EC2 + Nginx | Production hosting & SSL management |
+| **Vector DB** | Supabase + pgvector | Semantic search over lecture notes |
+| **Infrastructure** | AWS EC2 + Nginx + Vercel | Production hosting, SSL & demo deployment |
 
 ---
 
@@ -35,17 +37,17 @@
 piazza-ai-concept-scout/
 ├── backend/
 │   ├── controllers/    # Request handling logic
-│   ├── services/       # Business logic & LLM orchestration
+│   ├── services/       # Vector search & LLM orchestration
 │   ├── routes/         # Express API endpoints
 │   └── server.js       # Entry point
 ├── frontend/
 │   ├── src/
-│   │   ├── content.js   # Piazza DOM injection logic
-│   │   ├── components/ # React UI elements
-│   │   └── App.jsx      # Extension popup/overlay root
-│   └── manifest.json    # Extension configuration
+│   │   ├── content/     # Piazza DOM injection logic
+│   │   ├── components/  # React UI elements
+│   │   └── App.jsx      # Extension overlay root
+│   └── manifest.json   # Extension configuration
+├── demo-site/          # Standalone recruiter demo (Vercel)
 ├── .env                # API Keys (Git-ignored)
-├── package.json
 └── README.md
 ```
 
@@ -54,15 +56,15 @@ piazza-ai-concept-scout/
 ## 📝 Development Roadmap
 
 1.  **Phase 1: Visual Win & Extension Bridge**
-    *   Inject "Explain Concept" button into Piazza and establish communication with local Node.js backend.
+    *   Inject "Explain Concept" button into Piazza and establish communication with the backend.
 2.  **Phase 2: Express Proxy & Security**
     *   Secure API endpoints and implement environment variable management for LLM providers.
 3.  **Phase 3: RAG & Vector DB Integration**
-    *   Ingest course PDFs into a Vector Database to enable context-aware querying.
+    *   Ingest course PDFs into Supabase (pgvector) to enable context-aware querying.
 4.  **Phase 4: Resilient LLM Failover**
     *   Develop automated logic to switch providers based on rate limits or latency.
 5.  **Phase 5: Cloud Deployment**
-    *   Deploy to AWS EC2 with Nginx reverse proxy and SSL encryption.
+    *   Deploy to AWS EC2 with Nginx reverse proxy, SSL (DuckDNS), and demo on Vercel.
 
 ---
 
@@ -78,15 +80,15 @@ cd piazza-ai-concept-scout
 ```bash
 cd backend
 npm install
-# Create a .env file and add your API keys:
-# GROQ_API_KEY=your_key
-# GEMINI_API_KEY=your_key
-node server.js
+# Copy .env.example to .env and add your API keys:
+# SUPABASE_URL, SUPABASE_SERVICE_KEY, HUGGINGFACE_API_KEY
+# GROQ_API_KEY, GEMINI_API_KEY
+node src/server.js
 ```
 
-### 3. Frontend Setup
+### 3. Frontend (Extension) Setup
 ```bash
-cd ../frontend
+cd frontend
 npm install
 npm run build
 ```
@@ -94,14 +96,22 @@ npm run build
 ### 4. Load the Extension
 1. Open Chrome and navigate to `chrome://extensions`.
 2. Enable **Developer Mode**.
-3. Click **Load unpacked** and select the `frontend/dist` (or `frontend` during development) folder.
+3. Click **Load unpacked** and select the `frontend/dist` folder.
+
+### 5. Demo Site (Optional)
+```bash
+cd demo-site
+npm install
+npm run dev
+# Or deploy to Vercel
+```
 
 ---
 
 ## 🔐 Security & Architecture
-- **Credential Safety:** All sensitive API keys are stored server-side in an encrypted `.env` file; keys are never exposed to the client-side extension code.
-- **Minimal Permissions:** The extension follows the principle of least privilege, requesting only `storage` and host permissions for `piazza.com`.
-- **Modular Design:** Built using a **Controller/Service pattern** to ensure the code remains extensible for future adaptive learning features.
+- **Credential Safety:** All sensitive API keys are stored server-side in `.env`; keys are never exposed to the client.
+- **Minimal Permissions:** The extension requests only `storage` and host permissions for `piazza.com` and the API origin.
+- **CORS:** Backend restricts allowed origins (localhost, piazza.com, Vercel demo).
 
 ---
 
