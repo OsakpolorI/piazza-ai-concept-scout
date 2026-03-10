@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import MockPost from './MockPost';
+import ReadOnlyPost from './ReadOnlyPost';
+import CreatePostForm from './CreatePostForm';
+import PinnedPost from './PinnedPost';
+
+const PINNED_POST_ID = 0;
 
 const INITIAL_POSTS = [
   {
@@ -19,8 +23,8 @@ const INITIAL_POSTS = [
   },
   {
     id: 4,
-    title: 'What is the difference between RAM and storage?',
-    body: "I hear these terms a lot but I'm not sure how they differ. Why does my program run faster when things are in RAM versus on disk?",
+    title: 'Best pizza toppings for a Monday night?',
+    body: "I'm thinking of ordering pizza tonight. What are everyone's favorite topping combinations? Do you prefer pepperoni, vegetarian, or something else?",
   },
   {
     id: 5,
@@ -78,14 +82,40 @@ const HEADER_STYLE = {
 };
 
 function Forum({ onRequestExplain }) {
-  const [selectedId, setSelectedId] = useState(INITIAL_POSTS[0].id);
+  const [selectedId, setSelectedId] = useState(PINNED_POST_ID);
+  const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [nextId, setNextId] = useState(INITIAL_POSTS.length + 1);
+
+  const handleCreatePost = ({ title, body }) => {
+    const newPost = {
+      id: nextId,
+      title,
+      body,
+    };
+    setPosts([...posts, newPost]);
+    setNextId(nextId + 1);
+    setSelectedId(newPost.id);
+  };
 
   return (
     <div>
-      <header style={HEADER_STYLE}>Core Computer Science Fundamentals</header>
+      <header style={HEADER_STYLE}>Piazza AI Concept Scout — Live Demo</header>
       <div style={LAYOUT_STYLE}>
         <aside style={SIDEBAR_STYLE}>
-          {INITIAL_POSTS.map((post) => (
+          <div style={{ fontWeight: 600, fontSize: '12px', color: '#6b7280', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Posts
+          </div>
+          <div
+            style={POST_ITEM_STYLE(selectedId === PINNED_POST_ID)}
+            onClick={() => setSelectedId(PINNED_POST_ID)}
+            onKeyDown={(e) => e.key === 'Enter' && setSelectedId(PINNED_POST_ID)}
+            role="button"
+            tabIndex={0}
+          >
+            <div style={POST_ITEM_TITLE}>📌 Welcome & Instructions</div>
+            <div style={POST_ITEM_META}>pinned</div>
+          </div>
+          {posts.map((post) => (
             <div
               key={post.id}
               style={POST_ITEM_STYLE(selectedId === post.id)}
@@ -100,19 +130,23 @@ function Forum({ onRequestExplain }) {
           ))}
         </aside>
         <main style={MAIN_STYLE}>
-          {INITIAL_POSTS.map((post) => (
+          {selectedId === PINNED_POST_ID && <PinnedPost />}
+          {posts.map((post) => (
             <div
               key={post.id}
               style={{ display: selectedId === post.id ? 'block' : 'none' }}
             >
-              <MockPost
-                initialTitle={post.title}
-                initialBody={post.body}
+              <ReadOnlyPost
+                title={post.title}
+                body={post.body}
                 postId={post.id}
                 onExplain={onRequestExplain}
               />
             </div>
           ))}
+          {selectedId !== PINNED_POST_ID && posts.some((p) => p.id === selectedId) && (
+            <CreatePostForm onPostCreate={handleCreatePost} />
+          )}
         </main>
       </div>
     </div>
